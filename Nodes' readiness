@@ -1,0 +1,158 @@
+
+Initial verification
+=============
+
+0. Initial verification
+	cat /etc/redhat-release
+	uname -a
+	java -version
+           nslookup hostname
+           dig hostname
+           df -h
+
+
+Readiness
+========
+
+
+1. Set swappiness to 0
+
+ 	echo 0 > /proc/sys/vm/swappiness
+
+	echo "vm.swappiness = 0" >> /etc/sysctl.conf
+
+	http://www.mysqlperformanceblog.com/2014/04/28/oom-relation-vm-swappiness0-new-kernel/
+
+2. Set the datanode jbod volumes to not track access time
+
+	vim /etc/fstab
+
+	/dev/sdc /data01 ext3 defauts, noatime
+
+	native assumes nodirtime also
+
+	realtime is faster than atime but slower than native
+
+	mount -o remount /data01
+
+3. Reserve 5% of disk for root owned files. Maybe on an OS disk.
+
+4. (Do not do this)No root owned files on a  data disk. Disable root reserve space. (No.)
+
+	mkfs.ext3 -m 0 /dev/sdc
+
+	tune2fs -m 0 /dev/sdc
+
+5. Name Service Cache daemon (For large clusters, more than 50 nodes)
+
+ 	chkconfig --level 345 nscd on
+
+	service nscd start
+
+	nscd -g
+
+6. Increase max number of open files and max number of process. This is done by Cloudera Manager. 
+
+	echo hdfs - no file 32768 >> /etc/security/limits.conf
+ 
+	echo mapped - no file 32768 >> /etc/security/limits.conf
+
+	echo hbase - no file 32768 >> /etc/security/limits.conf
+
+
+           echo hdfs -noproc 32768  >> /etc/security/limits.conf
+
+	echo mapped - noproc 32768 >> /etc/security/limits.conf
+
+	echo hbase - noproc 32768 >> /etc/security/limits.conf
+
+7. Keep dedicated disk for OS and logs. If not stop HDFS, distributed blocks from disk0/dir to disk[1-n]/dir. Remove disk0/dir from dfs.data.dir and then start HDFS.
+
+8. Canonical name must be the FQDN.
+
+	Right
+	10.1.1.1 r01m01.cluster.org r01m01 master1
+
+	Wrong
+	10.1.1.1 r01m01 r01m01.cluster.org master1
+
+9. Check if forward and reverse dns is same
+
+	host www.cloudera.com
+	host 65.50.196.141
+	http://wiki.apache.org/hadoop/UnknownHost
+
+           Fix this before enabling nscd
+
+10. Check Disk IO
+
+	hdparm -Tt /dev/sdc
+           Look for at least 70 Mb/s
+	Slower could indicate a failing drive, disk controller, array etc
+    
+ 	dd 
+           https://romanrm.net/dd-benchmark
+
+11. Red hat Transparent Huge Pages
+	vim /etc/rc.local
+	echo never > /sys/kernel/mm/redhat_transparent_hugepage/defrag
+	echo never > /sys/kernel/mm/redhat_transparent_hugepage/enabled
+
+	http://structureddata.org/2012/06/18/linux-6-transparent-huge-pages-and-hadoop-workloads/
+
+12. Enable jumbo frames if your network infrastructures supports it. Will boost throughput 10-20%
+
+13. Turn off iptables
+
+service iptables off
+chkconfig iptables off
+chkconfig --list iptables
+
+14. Turn off selinux
+
+echo 0 > /selinux/enforce
+
+vim /etc/selinux/config
+
+selinux=disabled
+
+
+15. NTPD
+
+yum install ntpd
+
+chkconfig ntpd on
+
+chkconfig --list ntpd
+
+service ntpd start
+
+
+16. iperf
+
+yum install iperf
+
+If any problem:
+
+On server
+iperf -s   
+
+On 1 or more client nodes:
+
+iperf -c <ip address of server> -d
+
+or 
+
+iperf -c <ip address of server> -d -t xx    
+
+// xx seconds
+
+https://wiki.cloudera.com/display/Operations/Using+iperf+to+check+network+performance
+
+
+   
+
+
+
+
+
